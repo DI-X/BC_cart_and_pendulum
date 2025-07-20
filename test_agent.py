@@ -10,7 +10,7 @@
 import argparse
 
 from isaaclab.app import AppLauncher
-from bc import BC
+from scripts.BC.bc import BC
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Play a checkpoint of an RL agent from Stable-Baselines3.")
@@ -49,33 +49,21 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import gymnasium as gym
-import numpy as np
 import os
 import time
 import torch
 
-from stable_baselines3 import PPO
-from stable_baselines3.common.vec_env import VecNormalize
-
-from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
 from isaaclab.utils.dict import print_dict
-from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
-from isaaclab.utils.io import load_yaml
 
 from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry, parse_env_cfg
-
-from isaaclab.assets import Articulation
-import isaaclab.utils.math as math_utils
 
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import CartpoleEnvCfg
-from utils import get_checkpoint_path, get_log_time_path, define_markers, transform_from_w2y
+from utils import get_checkpoint_path, get_log_time_path
 
-import h5py
-import numpy as np
+
 # PLACEHOLDER: Extension template (do not remove this comment)
 
 
@@ -95,8 +83,8 @@ def main():
     env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
-    agent_config_path= os.path.join(log_time_path, "params", "agent.yaml")
-    agent_cfg = load_yaml(agent_config_path)
+    # agent_config_path= os.path.join(log_time_path, "params", "agent.yaml")
+    # agent_cfg = load_yaml(agent_config_path)
 
 
     # checkpoint and log_dir stuff
@@ -111,20 +99,20 @@ def main():
     log_dir = os.path.dirname(checkpoint_path)
 
     print("+", "-"*20, "+")
-    print("| agent_config |", agent_config_path, " |")
+    # print("| agent_config |", agent_config_path, " |")
     print("+", "-" * 120, "+")
     print("| check point | ", checkpoint_path, " |")
     print("+", "-" * 120, "+")
 
     # post-process agent configuration
-    agent_cfg = process_sb3_cfg(agent_cfg)
+    # agent_cfg = process_sb3_cfg(agent_cfg)
 
     # create isaac environment
     env = ManagerBasedRLEnv(cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
 
     # convert to single-agent instance if required by the RL algorithm
-    if isinstance(env.unwrapped, DirectMARLEnv):
-        env = multi_agent_to_single_agent(env)
+    # if isinstance(env.unwrapped, DirectMARLEnv):
+    #     env = multi_agent_to_single_agent(env)
 
     # wrap for video recording
     if args_cli.video:
@@ -141,23 +129,23 @@ def main():
     env = Sb3VecEnvWrapper(env)
 
     # normalize environment (if needed)
-    if "normalize_input" in agent_cfg:
-        env = VecNormalize(
-            env,
-            training=True,
-            norm_obs="normalize_input" in agent_cfg and agent_cfg.pop("normalize_input"),
-            norm_reward="normalize_value" in agent_cfg and agent_cfg.pop("normalize_value"),
-            clip_obs="clip_obs" in agent_cfg and agent_cfg.pop("clip_obs"),
-            gamma=agent_cfg["gamma"],
-            clip_reward=np.inf,
-        )
+    # if "normalize_input" in agent_cfg:
+    #     env = VecNormalize(
+    #         env,
+    #         training=True,
+    #         norm_obs="normalize_input" in agent_cfg and agent_cfg.pop("normalize_input"),
+    #         norm_reward="normalize_value" in agent_cfg and agent_cfg.pop("normalize_value"),
+    #         clip_obs="clip_obs" in agent_cfg and agent_cfg.pop("clip_obs"),
+    #         gamma=agent_cfg["gamma"],
+    #         clip_reward=np.inf,
+    #     )
 
     # create agent from stable baselines
     print(f"Loading checkpoint from: {checkpoint_path}")
     # agent = PPO.load(checkpoint_path, env, print_system_info=True)
     agent = BC()
     # agent.to(env_cfg.sim.device)
-    check_point = torch.load("model.pth", weights_only=True)
+    check_point = torch.load("data/model_BC/model.pth", weights_only=True)
     agent.load_state_dict(check_point['model_state_dict'])
 
     dt = env.unwrapped.step_dt

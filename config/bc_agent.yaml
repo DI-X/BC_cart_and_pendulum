@@ -1,0 +1,20 @@
+
+batch_size: 64
+n_epochs: 50
+learning_rate: 0.0003
+
+policy_kwargs:
+  activation_fn: 'relu'
+  net_arch: [32, 32]
+  input_shape: 4
+  output_shape: 1
+
+reward_kwargs:
+  l1_loss_weight: 1
+  l2_loss_weight: 1
+
+optimizer: adam
+num_check_point_to_save: 2
+device: cuda:0
+
+
