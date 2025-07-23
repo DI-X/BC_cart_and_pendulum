@@ -1,16 +1,16 @@
 from torch.utils.data.dataset import Dataset
 from torch.utils.data import DataLoader
 import h5py
-import os
 import numpy as np
 import torch
 
 import yaml
 import logging
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def get_dataloader(data_path:str, config: str = None, device = 'cpu'):
+def get_dataloader(data_path:str, config: str = None, num_workers:int = 0, device = 'cpu') -> DataLoader:
     if config is None:
         batch_size = 64
     else:
@@ -20,13 +20,13 @@ def get_dataloader(data_path:str, config: str = None, device = 'cpu'):
 
     processed_data = preprocess_demo_data(data_path)
     dataset = DemoDataset(processed_data, device)
-    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    data_loader = DataLoader(dataset, num_workers=num_workers, batch_size=batch_size, shuffle=True)
 
     return data_loader
 
-def preprocess_demo_data(data_path):
+def preprocess_demo_data(data_path: str) -> dict:
     with h5py.File(data_path, "r") as f:
-        precess_data = {'actions':[], 'observations': []}
+        processed_data = {'actions':[], 'observations': []}
 
         for name in f:
             if name.startswith('demo'):
@@ -34,13 +34,13 @@ def preprocess_demo_data(data_path):
                 if 'action' in group and 'observation' in group:
                     action = group['action'][:]
                     obs = group['observation'][:]
-                    precess_data['actions'].extend(action)
-                    precess_data['observations'].extend(obs)
+                    processed_data['actions'].extend(action)
+                    processed_data['observations'].extend(obs)
                 else:
                     logger.warning(f"{name} is missing observation or action")
 
-        data_array = {'actions' : np.array(precess_data['actions']),
-                  'observations' : np.array(precess_data['observations'])}
+        data_array = {'actions' : np.array(processed_data['actions']),
+                  'observations' : np.array(processed_data['observations'])}
 
     return data_array
 

@@ -29,7 +29,7 @@ class BC(nn.Module):
 
             self.first_hidden_units = 34
             self.second_hidden_units = 34
-            self.activation_fn = nn.ReLU()
+            self.act_fn_name = 'relu'
 
             self.lr = 1e-4
 
@@ -48,6 +48,7 @@ class BC(nn.Module):
 
         self.l2_loss = nn.MSELoss()
         self.l1_loss = nn.SmoothL1Loss()
+        self.activation_fn = ACTIVATIONS[self.act_fn_name]
         self.linear_relu_stack = nn.Sequential(
             nn.Linear(self.input_shape, self.first_hidden_units),
             self.activation_fn,
@@ -56,7 +57,7 @@ class BC(nn.Module):
             nn.Linear(self.second_hidden_units, self.output_shape)
         )
         self.optimizer = OPTIMIZERS[self.optimizer_name](self.parameters(), lr=self.lr)
-        self.to(device)
+        self.to(self.device)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.linear_relu_stack(x)
@@ -93,7 +94,7 @@ class BC(nn.Module):
                 self.optimizer.zero_grad()
 
                 if (t+1) % 10 == 0 and batch == 0:
-                    loss, current = loss.item(), batch * self.batch_size
+                    loss, current = loss.detach().item(), batch * self.batch_size
                     print(f" loss: {loss:>7f} epoch:{(t+1):>5d} / {self.n_epochs}")
 
                 if ((t+1) * data_size + batch * self.batch_size) % check_point_time_step == 0:
@@ -132,7 +133,7 @@ class BC(nn.Module):
             loss /= size
 
             # the output action will be scaled by 100 in issac sim
-            print(f"test average loss: {loss:>7f}, total l1 loss: {l1_loss}, action l1 loss: {100 * l1_loss/size} N/m")
+            print(f"test average loss: {loss:>7f}, total l1 loss: {l1_loss:>7f}, action l1 loss: {100 * l1_loss/size:>6.3f} N/m")
 
     def load_yaml(self, config: str) -> None:
         with open(config) as stream:
@@ -144,8 +145,8 @@ class BC(nn.Module):
             self.n_check_point_to_save = config_data['num_check_point_to_save']
             self.device = config_data['device']
 
-            if 'activation_fn' in config_data['policy_kwargs']:
-                self.activation_fn = ACTIVATIONS[config_data['policy_kwargs']['activation_fn']]
+            if 'act_fn_name' in config_data['policy_kwargs']:
+                self.act_fn_name = config_data['policy_kwargs']['act_fn_name']
             else:
                 raise ValueError( f"activation_fn is missing from config file: {config} [policy_kwargs]" )
 
@@ -182,7 +183,7 @@ class BC(nn.Module):
             'n_epochs': self.n_epochs,
             'learning_rate': self.lr,
             'policy_kwargs': {
-                'activation_fn': self.activation_fn,
+                'act_fn_name': self.act_fn_name,
                 'net_arch': [
                     self.first_hidden_units,
                     self.second_hidden_units,
@@ -196,7 +197,7 @@ class BC(nn.Module):
             },
             'optimizer':self.optimizer_name,
             'num_check_point_to_save': self.n_check_point_to_save,
-            'device':self.device,
+            'device': f"{self.device}",
         }
 
         config = os.path.join(save_dir, 'config.yaml')
