@@ -48,7 +48,6 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import gymnasium as gym
-import numpy as np
 import os
 import time
 import torch
@@ -58,17 +57,12 @@ from stable_baselines3.common.vec_env import VecNormalize
 
 from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
 from isaaclab.utils.dict import print_dict
-from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 from isaaclab.utils.io import load_yaml
 
 from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry, parse_env_cfg
-
-from isaaclab.assets import Articulation
-import isaaclab.utils.math as math_utils
-
+from  scripts.BC.demo_recorder import DemoRecorder
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import CartpoleEnvCfg
 from utils import get_checkpoint_path, get_log_time_path, define_markers, transform_from_w2y
@@ -97,7 +91,6 @@ def main():
     agent_config_path= os.path.join(log_time_path, "params", "agent.yaml")
     agent_cfg = load_yaml(agent_config_path)
 
-
     # checkpoint and log_dir stuff
     if args_cli.checkpoint is None:
         if args_cli.use_last_checkpoint:
@@ -125,10 +118,10 @@ def main():
     if isinstance(env.unwrapped, DirectMARLEnv):
         env = multi_agent_to_single_agent(env)
 
-    ###########
-    # save pointer before wrapping env to sb3 env
-    # sb3 env these value will be deleted
-    ###########
+    '''
+     save pointer before wrapping env to sb3 env
+     sb3 env these value will be deleted
+    '''
     env_episode_buffer= env.episode_length_buf
     env_max_episode_length = env.max_episode_length
 
@@ -167,66 +160,34 @@ def main():
     # reset environment
     obs = env.reset()
     timestep = 0
-    # simulate environment
-    with (h5py.File("test.hdf5", "a") as f):
-        num_demo_to_collect = 100
-        num_saved_demo = 0
-        obs_data = [[] for _ in range(env.num_envs)]
-        action_data = [[] for _ in range(env.num_envs)]
 
-        while simulation_app.is_running():
-            start_time = time.time()
-            # run everything in inference mode
-            with torch.inference_mode():
-                # agent stepping
-                actions, _ = agent.predict(obs, deterministic=True)
+    file_path = os.path.join('data', 'demo', 'demo_test.hdf5')
+    demo_rec = DemoRecorder(file_path=file_path, num_demo=100, num_env=env.num_envs, max_epi=env_max_episode_length)
 
-                ##############
-                # accumulate date
-                ############
-                for env_index in range(env.num_envs):
-                    obs_data[env_index].append(obs[env_index])
-                    action_data[env_index].append(actions[env_index])
+    while simulation_app.is_running():
+        start_time = time.time()
+        # run everything in inference mode
+        with torch.inference_mode():
+            # agent stepping
+            actions, _ = agent.predict(obs, deterministic=True)
 
-                ###########
-                # check if episode reach end
-                ############
-                for env_index in range(env.num_envs):
-                    if (env_episode_buffer[env_index] >= env_max_episode_length-1
-                        and num_saved_demo < num_demo_to_collect): # if done, store episode and create new data
-                        obs_arr = np.stack(obs_data[env_index], axis=0)
-                        action_arr = np.stack(action_data[env_index], axis=0)
+            demo_rec.record(obs, actions, env_episode_buffer)
 
-                        pointer_demo = f.create_group("demo_" + str(num_saved_demo))
-                        pointer_demo.create_dataset("observation", data=obs_arr)
-                        pointer_demo.create_dataset("action", data=action_arr)
-                        num_saved_demo += 1
+            # env stepping
+            obs, _, _, _ = env.step(actions)
+        if args_cli.video:
+            timestep += 1
+            # Exit the play loop after recording one video
+            if timestep == args_cli.video_length:
+                break
 
-                        obs_data[env_index] = []
-                        action_data[env_index] = []
-
-                print(env_episode_buffer)
-                print("num_demo:", num_saved_demo)
-                if(num_saved_demo >= num_demo_to_collect):
-                    print("demo collection completed")
-
-
-                # env stepping
-                obs, _, _, _ = env.step(actions)
-            if args_cli.video:
-                timestep += 1
-                # Exit the play loop after recording one video
-                if timestep == args_cli.video_length:
-                    break
-
-            # time delay for real-time evaluation
-            sleep_time = dt - (time.time() - start_time)
-            if args_cli.real_time and sleep_time > 0:
-                time.sleep(sleep_time)
+        # time delay for real-time evaluation
+        sleep_time = dt - (time.time() - start_time)
+        if args_cli.real_time and sleep_time > 0:
+            time.sleep(sleep_time)
 
     # close the simulator
     env.close()
-
 
 if __name__ == "__main__":
     # run the main function
