@@ -89,7 +89,7 @@ env_cfg to the main
 
 
 def main():
-    config_dir = os.path.abspath(os.path.join("config", "sb3_agent.yaml"))
+    config_dir = os.path.abspath(os.path.join("../config", "sb3_agent.yaml"))
     env_cfg = CartpoleEnvCfg()
     agent_cfg = load_yaml(config_dir)
 
@@ -106,7 +106,7 @@ def main():
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
     run_info = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    log_root_path = os.path.abspath(os.path.join("logs", "sb3", args_cli.task))
+    log_root_path = os.path.abspath(os.path.join("../logs", "sb3", args_cli.task))
     print(f"[info] Logging in directory: {log_root_path}")
     print(f"Exact experiment name from command line: {run_info}")
     log_dir = os.path.join(log_root_path, run_info)
@@ -163,7 +163,7 @@ def main():
 
     if args_cli.continue_train:
         # directory for logging into
-        log_root_path = os.path.join("logs", "sb3", args_cli.task)
+        log_root_path = os.path.join("../logs", "sb3", args_cli.task)
         if args_cli.log_time is not None:
             log_time_path = get_log_time_path(log_root_path, args_cli.log_time)
         else:

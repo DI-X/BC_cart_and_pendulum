@@ -33,6 +33,7 @@ parser.add_argument(
     action="store_true",
     help="When no checkpoint provided, use the last saved model. Otherwise use the best saved model.",
 )
+parser.add_argument("--agent_config", type=str, default='../config/bc_agent.yaml', help="config file for BC agent.")
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -54,23 +55,17 @@ import time
 import torch
 
 from isaaclab.utils.dict import print_dict
-
-from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
-
 import isaaclab_tasks  # noqa: F401
-
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import CartpoleEnvCfg
 from utils import get_checkpoint_path, get_log_time_path
 
-
 # PLACEHOLDER: Extension template (do not remove this comment)
-
 
 def main():
 
     # directory for logging into
-    log_root_path = os.path.join("logs", "sb3", args_cli.task)
+    log_root_path = os.path.join("../logs", "BC")
     if args_cli.log_time is not None:
         log_time_path = get_log_time_path(log_root_path, args_cli.log_time)
     else:
@@ -82,10 +77,8 @@ def main():
     env_cfg = CartpoleEnvCfg()
     env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
-
-    # agent_config_path= os.path.join(log_time_path, "params", "agent.yaml")
-    # agent_cfg = load_yaml(agent_config_path)
-
+    # create isaac environment
+    env = ManagerBasedRLEnv(cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
 
     # checkpoint and log_dir stuff
     if args_cli.checkpoint is None:
@@ -98,22 +91,6 @@ def main():
         checkpoint_path = os.path.join(log_time_path, args_cli.checkpoint)
     log_dir = os.path.dirname(checkpoint_path)
 
-    print("+", "-"*20, "+")
-    # print("| agent_config |", agent_config_path, " |")
-    print("+", "-" * 120, "+")
-    print("| check point | ", checkpoint_path, " |")
-    print("+", "-" * 120, "+")
-
-    # post-process agent configuration
-    # agent_cfg = process_sb3_cfg(agent_cfg)
-
-    # create isaac environment
-    env = ManagerBasedRLEnv(cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
-
-    # convert to single-agent instance if required by the RL algorithm
-    # if isinstance(env.unwrapped, DirectMARLEnv):
-    #     env = multi_agent_to_single_agent(env)
-
     # wrap for video recording
     if args_cli.video:
         video_kwargs = {
@@ -125,45 +102,28 @@ def main():
         print("[INFO] Recording videos during training.")
         print_dict(video_kwargs, nesting=4)
         env = gym.wrappers.RecordVideo(env, **video_kwargs)
-    # wrap around environment for stable baselines
-    env = Sb3VecEnvWrapper(env)
 
-    # normalize environment (if needed)
-    # if "normalize_input" in agent_cfg:
-    #     env = VecNormalize(
-    #         env,
-    #         training=True,
-    #         norm_obs="normalize_input" in agent_cfg and agent_cfg.pop("normalize_input"),
-    #         norm_reward="normalize_value" in agent_cfg and agent_cfg.pop("normalize_value"),
-    #         clip_obs="clip_obs" in agent_cfg and agent_cfg.pop("clip_obs"),
-    #         gamma=agent_cfg["gamma"],
-    #         clip_reward=np.inf,
-    #     )
-
-    # create agent from stable baselines
+    agent = BC(config = args_cli.agent_config, device=env_cfg.sim.device)
     print(f"Loading checkpoint from: {checkpoint_path}")
-    # agent = PPO.load(checkpoint_path, env, print_system_info=True)
-    agent = BC()
-    # agent.to(env_cfg.sim.device)
-    check_point = torch.load("data/model_BC/model.pth", weights_only=True)
+    check_point = torch.load(checkpoint_path, weights_only=True)
     agent.load_state_dict(check_point['model_state_dict'])
 
-    dt = env.unwrapped.step_dt
+    # dt = env.unwrapped.step_dt
+    dt=env.step_dt
 
     # reset environment
-    obs = env.reset()
+    obs, _  = env.reset()
     timestep = 0
-    # simulate environment
 
+    # simulate environment
     while simulation_app.is_running():
         start_time = time.time()
         # run everything in inference mode
         with torch.inference_mode():
             # agent stepping
-            actions = agent.predict(torch.tensor(obs))
-
+            actions = agent.predict(obs['policy'])
             # env stepping
-            obs, _, _, _ = env.step(actions)
+            obs, _, _, _, _ = env.step(actions)
         if args_cli.video:
             timestep += 1
             # Exit the play loop after recording one video
@@ -177,7 +137,6 @@ def main():
 
     # close the simulator
     env.close()
-
 
 if __name__ == "__main__":
     # run the main function

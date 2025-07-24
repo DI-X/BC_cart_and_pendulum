@@ -27,8 +27,8 @@ class BC(nn.Module):
             self.input_shape = 4
             self.output_shape = 1
 
-            self.first_hidden_units = 34
-            self.second_hidden_units = 34
+            self.first_hidden_units = 32
+            self.second_hidden_units = 32
             self.act_fn_name = 'relu'
 
             self.lr = 1e-4

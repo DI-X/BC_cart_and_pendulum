@@ -22,6 +22,7 @@ parser.add_argument("--num_envs", type=int, default=10, help="Number of environm
 parser.add_argument("--task", type=str, default="Isaac-Cartpole-v0", help="Name of the task.")
 parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint.")
 parser.add_argument("--log_time", type=str, default=None, help="time of log / policy name.")
+parser.add_argument("--demo_save_path", type=str, default=None, help="directory for saving demo data")
 parser.add_argument(
     "--use_pretrained_checkpoint",
     action="store_true",
@@ -75,7 +76,7 @@ import numpy as np
 def main():
 
     # directory for logging into
-    log_root_path = os.path.join("logs", "sb3", args_cli.task)
+    log_root_path = os.path.join("../logs", "sb3", args_cli.task)
     if args_cli.log_time is not None:
         log_time_path = get_log_time_path(log_root_path, args_cli.log_time)
     else:
@@ -161,7 +162,10 @@ def main():
     obs = env.reset()
     timestep = 0
 
-    file_path = os.path.join('data', 'demo', 'demo_test.hdf5')
+    if args_cli.demo_save_path is None:
+        file_path = os.path.join('../data', 'demo', 'demo_test.hdf5')
+    else:
+        file_path = args_cli.demo_save_path
     demo_rec = DemoRecorder(file_path=file_path, num_demo=100, num_env=env.num_envs, max_epi=env_max_episode_length)
 
     while simulation_app.is_running():

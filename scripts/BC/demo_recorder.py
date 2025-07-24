@@ -14,16 +14,16 @@ class DemoRecorder:
         self.actions_data = [ [] for _ in range(num_env)]
         self.demo_data = h5py.File(file_path, 'a')
 
-    def record(self, obs:torch.Tensor, actions:torch.Tensor, episode_buffer:torch.Tensor) -> None:
-        if not self.demo_data:
-            raise RuntimeError(f"Try to write a closed file")
-
+    def record(self, obs:np.ndarray, actions:np.ndarray, episode_buffer:torch.Tensor) -> None:
         for env_index in range(self.num_env):
             self.obs_data[env_index].append(obs[env_index])
             self.actions_data[env_index].append(actions[env_index])
 
             if (episode_buffer[env_index] >= self.num_max_episodes - 1 and
                 self.num_saved_demo < self.num_demo_to_collect):
+
+                if not self.demo_data:
+                    raise RuntimeError(f"Try to write a closed file")
 
                 obs_arr = np.stack(self.obs_data[env_index], axis=0)
                 actions_arr = np.stack(self.actions_data[env_index], axis=0)
